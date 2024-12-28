@@ -2,37 +2,41 @@
 pragma solidity ^0.8.28;
 
 contract Lottery {
-    // Address of the admin who deployed the contract
-    address public admin;
+    address public admin;   // Address of the admin who deployed the contract
+    address[] public players;    // List of players who entered the lottery
+    uint256 public ticketPrice = 0.01 ether;    // Price of a lottery ticket
+    address public winner;    // Address of the winner (set after picking the winner)
 
-    // List of players who entered the lottery
-    address[] public players;
-
-    // Price of a lottery ticket
-    uint256 public ticketPrice = 0.01 ether;
-
-    // Address of the winner (set after picking the winner)
-    address public winner;
+    event LotteryReset();
 
     // Constructor: Initializes the admin as the deployer of the contract
     constructor() {
         admin = msg.sender;
     }
 
+    // Modyfikator sprawdzający, czy wywołujący funkcję jest adminem
+    modifier onlyAdmin() {
+        require(msg.sender == admin, "Only admin can perform this action.");
+        _;
+    }
+
+    // Modyfikator sprawdzający, czy wywołujący funkcję jest zwycięzcą
+    modifier onlyWinner() {
+        require(msg.sender == winner, "You are not the winner.");
+        _;
+    }
+
     // Function to enter the lottery by paying the ticket price
     function enter() public payable {
-        // Ensure the sender has paid at least the ticket price
-        require(msg.value >= ticketPrice, "Minimum 0.01 ETH required to enter lottery.");
+        // Ensure the sender has paid the ticket price
+        require(msg.value == ticketPrice, "Minimum 0.01 ETH required to enter lottery.");
         
         // Add the sender to the list of players
         players.push(msg.sender);
     }
 
     // Function for the admin to pick a random winner
-    function pickWinner() public {
-        // Ensure that only the admin can call this function
-        require(msg.sender == admin, "Only admin can pick a winner.");
-
+    function pickWinner() public onlyAdmin {
         // Ensure there are players in the lottery
         require(players.length > 0, "No players in the lottery.");
 
@@ -44,25 +48,37 @@ contract Lottery {
     }
 
     // Function for the winner to claim their prize
-    function claimPrize() public {
-        // Ensure the sender is the winner
-        require(msg.sender == winner, "You are not the winner.");
-
+    function claimPrize() public onlyWinner {
         // Get the contract's balance to determine the prize
         uint256 balance = address(this).balance;
 
         // Ensure there are funds to claim
         require(balance > 0, "No funds to claim.");
 
-        // Reset the winner to allow for a new lottery round
-        winner = address(0);
-
         // Transfer the prize to the winner
         payable(msg.sender).transfer(balance);
+
+        // Reset the Lottery to allow for a new round
+        delete players;
+        winner = address(0);
+        emit LotteryReset();
+    }
+
+    // Function for resetting the Lottery. Unclaimed prize is included in the next draw
+    function reset() public onlyAdmin {
+        delete players;
+        winner = address(0);
+
+        emit LotteryReset();
     }
 
     // Function to get the list of all players in the lottery
     function getPlayers() public view returns (address[] memory) {
         return players;
+    }
+
+    // Function to get the current prizePool
+    function getPrizePool() public view returns (uint256) {
+        return address(this).balance;
     }
 }
