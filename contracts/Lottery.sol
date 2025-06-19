@@ -6,12 +6,16 @@ contract Lottery {
     address[] public players;    // List of players who entered the lottery
     uint256 public ticketPrice = 0.01 ether;    // Price of a lottery ticket
     address public winner;    // Address of the winner (set after picking the winner)
+    address public feeCollector; // Address that stores fees from players
+
+    uint256 public feePercent = 10; // 10%
 
     event LotteryReset();
 
     // Constructor: Initializes the admin as the deployer of the contract
-    constructor() {
+    constructor(address _feeCollector) {
         admin = msg.sender;
+        feeCollector = _feeCollector;
     }
 
     // Modyfikator sprawdzający, czy wywołujący funkcję jest adminem
@@ -29,8 +33,14 @@ contract Lottery {
     // Function to enter the lottery by paying the ticket price
     function enter() public payable {
         // Ensure the sender has paid the ticket price
-        require(msg.value == ticketPrice, "Minimum 0.01 ETH required to enter lottery.");
+        require(msg.value == ticketPrice, "0.01 ETH required to enter lottery.");
         
+        uint256 feeAmount = (msg.value * feePercent) / 100; // Obliczenie wysokosci fee
+
+        // Send fee to feeCollector
+        (bool sent,) = payable(feeCollector).call{value: feeAmount}("");
+        require(sent, "Fee transfer failed.");
+
         // Add the sender to the list of players
         players.push(msg.sender);
     }

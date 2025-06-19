@@ -7,15 +7,14 @@ describe("Lottery Contract", function () {
     let admin: any;
     let user1: any;
     let user2: any;
+    let feeCollector: any;
 
     beforeEach(async () => {
-        // Pobierz konta
-        [admin, user1, user2] = await ethers.getSigners();
+        [admin, user1, user2, feeCollector] = await ethers.getSigners();
 
-        // Deploy kontraktu
-        const Lottery = await ethers.getContractFactory("Lottery", admin);
-        lottery = (await Lottery.deploy()) as Lottery;
-        await (lottery as any).deployed();
+        const LotteryFactory = await ethers.getContractFactory("Lottery", admin);
+        lottery = (await LotteryFactory.deploy(feeCollector)) as Lottery;
+        await lottery.waitForDeployment();
     });
 
     it("should allow a user to enter the lottery", async () => {
@@ -27,7 +26,7 @@ describe("Lottery Contract", function () {
 
     it("should not allow a user to enter without enough ETH", async () => {
         await expect(lottery.connect(user1).enter({ value: ethers.parseEther("0.001") })).to.be.revertedWith(
-            "Minimum 0.01 ETH required to enter lottery."
+            "0.01 ETH required to enter lottery."
         );
     });
 
@@ -52,5 +51,18 @@ describe("Lottery Contract", function () {
         const finalBalance = await ethers.provider.getBalance(winner);
 
         expect(finalBalance).to.be.gt(initialBalance);
+    });
+
+    it("should send fee to feeCollector", async () => {
+        const balanceBefore = await ethers.provider.getBalance(feeCollector);
+        await lottery.connect(user1).enter({ value: ethers.parseEther("0.01") });
+        await lottery.connect(admin).pickWinner();
+        await lottery.connect(user1).claimPrize();
+
+        const feeAmount = ethers.parseEther("0.001");
+        const balanceAfter = await ethers.provider.getBalance(feeCollector);
+        const balanceBeforeAndFee = balanceBefore + feeAmount;
+
+        expect(balanceAfter).to.equal(balanceBeforeAndFee);
     });
 });
